@@ -1,0 +1,11 @@
+[package]
+name = "wgserver"
+authors = ["Raphael Cunha"]
+description = "WireGuard Server Configuration Tool"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+clap = { version = "4", features = ["derive"] }
+ipnet = "2"
+qrcode = "0.15"
