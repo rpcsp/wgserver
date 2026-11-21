@@ -1,10 +1,7 @@
 use crate::config::Peer;
 use crate::config::constants::{GROUP_INTERFACE, GROUP_PEER, KNOWN_GROUPS, LAST_PEER_MSG};
-use crate::custom::{Mtu, Port};
-use crate::{
-    config::{ConfigError, ServerConfig},
-    system,
-};
+use crate::config::{ConfigError, ServerConfig};
+use crate::custom::{MTU_DEFAULT, Mtu, Port};
 use ipnet::IpNet;
 use ipnet::Ipv4Net;
 use ipnet::Ipv6Net;
@@ -19,7 +16,6 @@ pub struct PartialServerConfig {
     mtu: Option<Mtu>,
     private_key: Option<String>,
     url: Option<String>,
-    interface: Option<String>,
     post_up: Option<String>,
     post_down: Option<String>,
     peers: Vec<PartialPeer>,
@@ -201,13 +197,9 @@ fn partial_to_server_config(p: PartialServerConfig) -> Result<ServerConfig, Conf
         ipv4: required(p.ipv4, "Config should contain an IPv4 address")?,
         ipv6: p.ipv6,
         listen_port: required(p.listen_port, "Config should contain 'ListenPort'")?,
-        mtu: required(p.mtu, "Config should contain 'MTU'")?,
+        mtu: p.mtu.unwrap_or(MTU_DEFAULT),
         private_key: required(p.private_key, "Config should contain 'PrivateKey'")?,
-        url: required(p.url, "Config should contain 'Url'")?,
-        interface: match p.interface {
-            Some(i) => i,
-            None => system::get_default_interface()?,
-        },
+        url: p.url,
         post_up: required(p.post_up, "Config should contain 'PostUp'")?,
         post_down: required(p.post_down, "Config should contain 'PostDown'")?,
         extra: p.extra,
@@ -229,4 +221,61 @@ fn partial_to_peer(p: PartialPeer) -> Result<Peer, ConfigError> {
         ipv6: p.ipv6,
         extra: p.extra,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::config::tests::TEST_PATH;
+
+    /// Config with no `MTU`, no `# Url`, comments, and blank lines.
+    const TEST_CONFIG: &str = "
+[Interface]
+Address = 10.8.0.1/24, fd42::1/64
+ListenPort = 51820
+PrivateKey = 2PR213lvyUr4AGKRTN1mVY1fIN7j4r5A+oVfB2q/tFc=
+PostUp = true
+PostDown = true
+
+[Peer]
+# Name = alice
+PublicKey = JPna0zzfCMOGxU7V3C/R6/FaavKmgOFRcPlftdgg8E8=
+PresharedKey = lzFe4Qkb0nu4tuCKR4/IwsvmQhAdgZE9/a6hyhK7eYM=
+AllowedIPs = 10.8.0.2/32, fd42::2/128
+";
+
+    #[test]
+    fn loads_a_config_without_mtu_or_url() {
+        let config =
+            from_server_config_content(TEST_CONFIG, TEST_PATH).expect("config should load");
+        assert_eq!(config.peers.len(), 1);
+        assert_eq!(config.peers[0].name, "alice");
+        assert_eq!(config.url, None);
+        assert_eq!(config.mtu.to_string(), MTU_DEFAULT.to_string());
+    }
+
+    #[test]
+    fn writing_then_reading_again_is_stable() {
+        let once = from_server_config_content(TEST_CONFIG, TEST_PATH).unwrap();
+        let twice = from_server_config_content(&once.file_content(), TEST_PATH).unwrap();
+        assert_eq!(twice.file_content(), once.file_content());
+    }
+
+    #[test]
+    fn peer_allowed_ips_are_written_back_as_host_routes() {
+        let config = from_server_config_content(TEST_CONFIG, TEST_PATH).unwrap();
+        let content = config.file_content();
+        assert!(
+            content.contains("AllowedIPs = 10.8.0.2/32, fd42::2/128"),
+            "unexpected content:\n{content}"
+        );
+    }
+
+    #[test]
+    fn missing_private_key_is_reported_by_name() {
+        let content = "[Interface]\nAddress = 10.8.0.1/24\nListenPort = 51820\n\
+                       PostUp = true\nPostDown = true\n";
+        let error = from_server_config_content(content, TEST_PATH).unwrap_err();
+        assert!(error.to_string().contains("PrivateKey"), "{error}");
+    }
 }

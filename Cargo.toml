@@ -9,3 +9,9 @@ edition = "2024"
 clap = { version = "4", features = ["derive"] }
 ipnet = "2"
 qrcode = "0.15"
+
+[profile.release]
+strip = true
+lto = true          # Enable Link Time Optimization to remove dead code across crates
+codegen-units = 1   # Allow maximum size optimization across the whole binary
+opt-level = "s"     # Often a better balance of size and speed than "z"

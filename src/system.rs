@@ -1,28 +1,31 @@
+pub mod ip_forwarding;
+
 use std::{
     fs::{self, OpenOptions},
     io::{self, Write},
     os::unix::fs::OpenOptionsExt,
     path::Path,
-    process::{Command, Stdio},
+    process::{Command, Output, Stdio},
 };
 
 use crate::config::{ConfigError, ServerConfig};
 
 pub struct WgService {
-    interface: String,
+    tunnel_name: String,
 }
 impl WgService {
     pub fn from_config(config: &ServerConfig) -> Self {
         WgService {
-            interface: config.interface.to_string(),
+            tunnel_name: config.tunnel_name().to_string(),
         }
     }
 
     pub fn unit(self) -> String {
-        format!("wg-quick@{}.service", self.interface)
+        format!("wg-quick@{}.service", self.tunnel_name)
     }
 
     pub fn restart(self) -> Result<(), ConfigError> {
+        ip_forwarding::enable()?;
         let unit = self.unit();
         run_command("systemctl", &["enable", &unit], None)?;
         run_command("systemctl", &["daemon-reload"], None)?;
@@ -30,9 +33,39 @@ impl WgService {
         Ok(())
     }
 
-    pub fn status(self) -> Result<String, ConfigError> {
-        let unit = self.unit();
-        run_command("systemctl", &["status", &unit], None)
+    pub fn print_status(self) {
+        println!("Checking wireguard service...");
+        // `systemctl status` exits with non-zero code for units that are stopped
+        match run_command_ignoring_status("systemctl", &["status", &self.unit()]) {
+            Ok(output) if !output.is_empty() => println!("{output}"),
+            Ok(_) => println!("No output from 'systemctl status'."),
+            Err(e) => println!("Error: {}", e),
+        }
+    }
+}
+
+pub mod generate_key {
+    use super::{ConfigError, run_command};
+
+    pub fn public(private: &str) -> Result<String, ConfigError> {
+        run_command("wg", &["pubkey"], Some(private)).and_then(validate_wg_key)
+    }
+
+    pub fn private() -> Result<String, ConfigError> {
+        run_command("wg", &["genkey"], None).and_then(validate_wg_key)
+    }
+
+    pub fn preshared() -> Result<String, ConfigError> {
+        run_command("wg", &["genpsk"], None).and_then(validate_wg_key)
+    }
+
+    fn validate_wg_key(key: String) -> Result<String, ConfigError> {
+        match key.len() {
+            44 => Ok(key),
+            _ => Err(ConfigError::KeyGeneration(format!(
+                "Unexpected 'wg' output: {key:?}"
+            ))),
+        }
     }
 }
 
@@ -47,7 +80,8 @@ pub fn write_config_file(path: &str, content: &str) -> Result<(), ConfigError> {
         }
     }
     // Create new temp file with permission 600
-    let temp_path = format!("{path}.tmp");
+    // The process id keeps the name unique
+    let temp_path = format!("{path}.tmp.{}", std::process::id());
     let mut file = OpenOptions::new()
         .write(true)
         .create_new(true)
@@ -69,6 +103,30 @@ pub fn write_config_file(path: &str, content: &str) -> Result<(), ConfigError> {
 }
 
 fn run_command(program: &str, args: &[&str], input: Option<&str>) -> Result<String, ConfigError> {
+    let output = spawn_and_wait(program, args, input)?;
+    if !output.status.success() {
+        return Err(ConfigError::RunCommand(format!(
+            "Command '{} {}' failed: {}",
+            program,
+            args.join(" "),
+            read_output(&output.stderr)
+        )));
+    }
+    Ok(read_output(&output.stdout))
+}
+
+/// Run a command and return its stdout whatever the exit status is, for
+/// commands that report useful output while exiting non-zero.
+fn run_command_ignoring_status(program: &str, args: &[&str]) -> Result<String, ConfigError> {
+    let output = spawn_and_wait(program, args, None)?;
+    Ok(read_output(&output.stdout))
+}
+
+fn spawn_and_wait(
+    program: &str,
+    args: &[&str],
+    input: Option<&str>,
+) -> Result<Output, ConfigError> {
     let mut child = Command::new(program)
         .args(args)
         .stdin(Stdio::piped())
@@ -93,47 +151,16 @@ fn run_command(program: &str, args: &[&str], input: Option<&str>) -> Result<Stri
     // Drop stdin before calling wait_with_output
     drop(stdin);
 
-    let output = child
+    child
         .wait_with_output()
-        .map_err(|e| ConfigError::RunCommand(format!("Command '{program}' failed: {e}")))?;
-
-    if !output.status.success() {
-        return Err(ConfigError::RunCommand(format!(
-            "Command '{} {}' failed: {}",
-            program,
-            args.join(" "),
-            read_output(&output.stderr)
-        )));
-    }
-    Ok(read_output(&output.stdout))
+        .map_err(|e| ConfigError::RunCommand(format!("Command '{program}' failed: {e}")))
 }
 
 fn read_output(output: &[u8]) -> String {
     String::from_utf8_lossy(output).trim().to_string()
 }
 
-fn validate_wg_key(key: String) -> Result<String, ConfigError> {
-    match key.len() {
-        44 => Ok(key),
-        _ => Err(ConfigError::KeyGeneration(format!(
-            "Unexpected 'wg' output: {key:?}"
-        ))),
-    }
-}
-
-pub fn generate_public_key(private: &str) -> Result<String, ConfigError> {
-    run_command("wg", &["pubkey"], Some(private)).and_then(validate_wg_key)
-}
-
-pub fn generate_private_key() -> Result<String, ConfigError> {
-    run_command("wg", &["genkey"], None).and_then(validate_wg_key)
-}
-
-pub fn generate_preshared_key() -> Result<String, ConfigError> {
-    run_command("wg", &["genpsk"], None).and_then(validate_wg_key)
-}
-
-/// Run command ip route get 198.51.100.1 and get the output interfacewgserver
+/// Run command ip route get 198.51.100.1 and get the output interface
 ///
 /// This is a best effort approach and may not work in some situations.
 /// Note: RFC 5737 describes IPv4 Address Blocks Reserved for Documentation
@@ -161,5 +188,17 @@ pub fn get_default_interface() -> Result<String, ConfigError> {
         None => Err(ConfigError::Parsing(format!(
             "Cannot obtain interface from 'ip route get' output {output:?}"
         ))),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::WgService;
+    use crate::config::tests::test_server;
+
+    #[test]
+    fn unit_is_named_after_the_config_file_not_the_uplink() {
+        let service = WgService::from_config(&test_server());
+        assert_eq!(service.unit(), "wg-quick@wg0.service");
     }
 }

@@ -5,7 +5,7 @@ pub fn qrcode_string(text: &str) -> Result<String, qrcode::types::QrError> {
     let mut qrcode_lines = String::new();
 
     let width = code.width();
-    let border = 2;
+    let border = 4;
 
     // Include a quiet zone around the QR code.
     let size = width + border * 2;
