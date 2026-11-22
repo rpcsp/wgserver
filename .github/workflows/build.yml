@@ -110,9 +110,46 @@ jobs:
           path: target/${{ matrix.target }}/release/wgserver
           if-no-files-found: error
 
+  build-armv7-legacy:
+    name: Build ARMv7 (glibc 2.28)
+    needs: quality
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust target
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: armv7-unknown-linux-gnueabihf
+
+      - name: Setup Zig
+        uses: mlugg/setup-zig@v2
+        with:
+          version: 0.14.1
+
+      - name: Install cargo-zigbuild
+        run: cargo install --locked cargo-zigbuild
+
+      - name: Build release
+        run: |
+          cargo zigbuild --release --locked \
+            --target armv7-unknown-linux-gnueabihf.2.28
+
+      - name: Ensure binary is executable
+        run: chmod +x target/armv7-unknown-linux-gnueabihf/release/wgserver
+
+      - name: Upload binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: wgserver-armv7-glibc228
+          path: target/armv7-unknown-linux-gnueabihf/release/wgserver
+          if-no-files-found: error
+
   release:
     name: Publish GitHub Release
-    needs: build
+    needs: [build, build-armv7-legacy]
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-24.04
     permissions:
@@ -131,12 +168,24 @@ jobs:
           name: wgserver-raspberry-pi-armv7
           path: dist/armv7
 
+      - name: Download Raspberry Pi legacy binary
+        uses: actions/download-artifact@v4
+        with:
+          name: wgserver-armv7-glibc228
+          path: dist/armv7-glibc228
+
       - name: Prepare release files
         run: |
           mv dist/x64/wgserver dist/wgserver-linux-x64
-          mv dist/armv7/wgserver dist/wgserver-raspberry-pi-armv7
+          mv dist/armv7/wgserver dist/wgserver-linux-armv7
+          mv dist/armv7-glibc228/wgserver dist/wgserver-linux-armv7-glibc228
+
           cd dist
-          sha256sum wgserver-linux-x64 wgserver-raspberry-pi-armv7 > SHA256SUMS
+          sha256sum \
+            wgserver-linux-x64 \
+            wgserver-linux-armv7 \
+            wgserver-linux-armv7-glibc228 \
+            > SHA256SUMS
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
@@ -145,5 +194,6 @@ jobs:
           fail_on_unmatched_files: true
           files: |
             dist/wgserver-linux-x64
-            dist/wgserver-raspberry-pi-armv7
+            dist/wgserver-linux-armv7
+            dist/wgserver-linux-armv7-glibc228
             dist/SHA256SUMS
