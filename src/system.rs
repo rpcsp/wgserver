@@ -20,13 +20,14 @@ impl WgService {
         }
     }
 
-    pub fn unit(self) -> String {
+    /// The systemd unit that runs this tunnel, e.g. wg-quick@wg0.service.
+    pub fn systemd_unit_name(self) -> String {
         format!("wg-quick@{}.service", self.tunnel_name)
     }
 
     pub fn restart(self) -> Result<(), ConfigError> {
         ip_forwarding::enable()?;
-        let unit = self.unit();
+        let unit = self.systemd_unit_name();
         run_command("systemctl", &["enable", &unit], None)?;
         run_command("systemctl", &["daemon-reload"], None)?;
         run_command("systemctl", &["restart", &unit], None)?;
@@ -36,10 +37,10 @@ impl WgService {
     pub fn print_status(self) {
         println!("Checking wireguard service...");
         // `systemctl status` exits with non-zero code for units that are stopped
-        match run_command_ignoring_status("systemctl", &["status", &self.unit()]) {
+        match run_command_ignoring_status("systemctl", &["status", &self.systemd_unit_name()]) {
             Ok(output) if !output.is_empty() => println!("{output}"),
             Ok(_) => println!("No output from 'systemctl status'."),
-            Err(e) => println!("Error: {}", e),
+            Err(e) => println!("Error: {e}"),
         }
     }
 }
@@ -94,7 +95,10 @@ pub fn write_config_file(path: &str, content: &str) -> Result<(), ConfigError> {
     // Sync the file that was written
     file.sync_all()
         .map_err(|e| io_err("Error syncing config file", &temp_path, e))?;
-    fs::rename(temp_path, path).map_err(|e| io_err("Error replacing config file", path, e))?;
+    if let Err(e) = fs::rename(&temp_path, path) {
+        let _ = fs::remove_file(&temp_path);
+        return Err(io_err("Error replacing config file", path, e));
+    }
     // Sync the directory that was written
     if let Ok(d) = fs::File::open(Path::new(path).parent().unwrap_or(Path::new("."))) {
         let _ = d.sync_all();
@@ -199,6 +203,6 @@ mod tests {
     #[test]
     fn unit_is_named_after_the_config_file_not_the_uplink() {
         let service = WgService::from_config(&test_server());
-        assert_eq!(service.unit(), "wg-quick@wg0.service");
+        assert_eq!(service.systemd_unit_name(), "wg-quick@wg0.service");
     }
 }

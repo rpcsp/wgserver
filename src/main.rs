@@ -23,9 +23,9 @@ fn run(action: cli::Action, path: &str) -> Result<(), Box<dyn Error>> {
         cli::Action::Add(cli) => {
             let mut server_config = ServerConfig::load(path)?;
             let peer_config = server_config.add_peer(cli)?;
+            server_config.save()?;
             println!("{}", peer_config);
             eprintln!("{}", qrcode_string(&peer_config)?);
-            server_config.save()?;
         }
         cli::Action::Remove(cli) => ServerConfig::load(path)?.remove_peer(&cli.name)?.save()?,
         cli::Action::Print => print!("{}", ServerConfig::load(path)?.file_content()),

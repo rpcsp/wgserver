@@ -12,7 +12,7 @@ pub fn print_status() {
         match is_enabled(key) {
             Ok(true) => println!("{label} enabled... yes\n"),
             Ok(false) => println!("{label} enabled... no\n"),
-            Err(e) => println!("Error: {}", e),
+            Err(e) => println!("Error: {e}"),
         }
     }
 }
@@ -32,9 +32,10 @@ pub fn enable() -> Result<(), ConfigError> {
 }
 
 /// Check if forwarding is enabled for the given sysctl key.
-pub fn is_enabled(key: &str) -> Result<bool, ConfigError> {
+fn is_enabled(key: &str) -> Result<bool, ConfigError> {
     let output = run_command("sysctl", &[key], None)?;
-    let enabled = output.contains(&format!("{}=1", key)) || output.contains(&format!("{} = 1", key));
+    let enabled =
+        output.contains(&format!("{}=1", key)) || output.contains(&format!("{} = 1", key));
     Ok(enabled)
 }
 
@@ -57,7 +58,8 @@ fn get_persisted_value(content: &str, key: &str) -> Option<String> {
 /// Check if the persistent config already enables every key we manage.
 fn is_persisted() -> bool {
     let config = std::fs::read_to_string(SYSCTL_CONFIG).unwrap_or_default();
-    LABEL_KEY_PAIRS.iter()
+    LABEL_KEY_PAIRS
+        .iter()
         .all(|(_, key)| get_persisted_value(&config, key) == Some("1".to_string()))
 }
 

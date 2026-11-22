@@ -156,7 +156,7 @@ impl ServerConfig {
         let path = path.to_string();
         if !cli.overwrite && ServerConfig::non_empty_config_file_exists(&path) {
             return Err(ConfigError::AlreadyExists { path });
-        };
+        }
         let config = ServerConfig::from_cli(cli, path)?;
         Ok(config)
     }
@@ -252,8 +252,9 @@ impl ServerConfig {
         // Identify the next available
         for ip in self.ipv4.hosts() {
             if !known_ips.contains(&ip) && ip > self.ipv4.addr() {
-                return Ipv4Net::new(ip, self.ipv4.prefix_len())
-                    .map_err(|e| ConfigError::IpAddress(format!("IP error: {e} exhausted")));
+                return Ipv4Net::new(ip, self.ipv4.prefix_len()).map_err(|e| {
+                    ConfigError::IpAddress(format!("Cannot build IPv4 network: {e}"))
+                });
             }
         }
         Err(ConfigError::IpAddress(format!(
@@ -277,7 +278,7 @@ impl ServerConfig {
                 for ip in ipv6.hosts() {
                     if !known_ips.contains(&ip) && ip > ipv6.addr() {
                         let ip = Ipv6Net::new(ip, ipv6.prefix_len()).map_err(|e| {
-                            ConfigError::IpAddress(format!("IP error: {e} exhausted"))
+                            ConfigError::IpAddress(format!("Cannot build IPv6 network: {e}"))
                         })?;
                         return Ok(Some(ip));
                     }

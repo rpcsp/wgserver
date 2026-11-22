@@ -56,7 +56,7 @@ pub fn from_server_config_content(content: &str, path: &str) -> Result<ServerCon
         }
 
         // Parse group names
-        if let Some(s) = line.strip_prefix("[").and_then(|s| s.strip_suffix("]")) {
+        if let Some(s) = line.strip_prefix('[').and_then(|s| s.strip_suffix(']')) {
             group = s.trim().to_string();
             match group.as_str() {
                 GROUP_INTERFACE => (),
@@ -115,7 +115,7 @@ fn parse_interface_attribute(
 ) -> Result<(), ConfigError> {
     match key {
         "Address" => {
-            let ips = value.split(",").map(|s| s.trim().parse::<IpNet>());
+            let ips = value.split(',').map(|s| s.trim().parse::<IpNet>());
             for ip in ips {
                 match ip {
                     Ok(IpNet::V4(ipv4)) => parsed.ipv4 = Some(ipv4),
@@ -166,7 +166,7 @@ fn parse_peer_attribute(
         "PublicKey" => peer.public_key = Some(value),
         "PresharedKey" => peer.preshared_key = Some(value),
         "AllowedIPs" => {
-            for ip_str in value.split(",") {
+            for ip_str in value.split(',') {
                 let ip: IpNet = ip_str.trim().parse().map_err(|e| {
                     ConfigError::Parsing(format!("Failed to parse IP address: {e}"))
                 })?;
