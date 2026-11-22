@@ -1,7 +1,7 @@
 use crate::config::Peer;
 use crate::config::constants::{GROUP_INTERFACE, GROUP_PEER, KNOWN_GROUPS, LAST_PEER_MSG};
 use crate::config::{ConfigError, ServerConfig};
-use crate::custom::{MTU_DEFAULT, Mtu, Port};
+use crate::custom::{MTU_DEFAULT, Mtu, PeerName, Port};
 use ipnet::IpNet;
 use ipnet::Ipv4Net;
 use ipnet::Ipv6Net;
@@ -25,7 +25,7 @@ pub struct PartialServerConfig {
 
 #[derive(Debug, Default)]
 pub struct PartialPeer {
-    name: Option<String>,
+    name: Option<PeerName>,
     public_key: Option<String>,
     preshared_key: Option<String>,
     ipv4: Option<Ipv4Net>,
@@ -176,7 +176,13 @@ fn parse_peer_attribute(
                 }
             }
         }
-        "# Name" => peer.name = Some(value),
+        "# Name" => {
+            peer.name = Some(
+                value
+                    .parse()
+                    .map_err(|e| ConfigError::Parsing(format!("Invalid peer name: {e}")))?,
+            );
+        }
         _ => {
             peer.extra.push(format!("{key} = {value}"));
             parsed.unrecognized_keys_and_groups.push(key.to_string());
@@ -249,7 +255,7 @@ AllowedIPs = 10.8.0.2/32, fd42::2/128
         let config =
             from_server_config_content(TEST_CONFIG, TEST_PATH).expect("config should load");
         assert_eq!(config.peers.len(), 1);
-        assert_eq!(config.peers[0].name, "alice");
+        assert_eq!(config.peers[0].name.as_str(), "alice");
         assert_eq!(config.url, None);
         assert_eq!(config.mtu.to_string(), MTU_DEFAULT.to_string());
     }

@@ -9,6 +9,7 @@ use std::{
 };
 
 use crate::config::{ConfigError, ServerConfig};
+use crate::custom::InterfaceName;
 
 pub struct WgService {
     tunnel_name: String,
@@ -171,7 +172,7 @@ fn read_output(output: &[u8]) -> String {
 /// Example:
 /// 198.51.100.1 via 192.168.5.1 dev wlp192s0 src 192.168.5.9 uid 1000
 ///    cache
-pub fn get_default_interface() -> Result<String, ConfigError> {
+pub fn get_default_interface() -> Result<InterfaceName, ConfigError> {
     let rfc_5737_ip = "198.51.100.1";
     let output = run_command("ip", &["route", "get", rfc_5737_ip], None)?;
     let mut dev_found = false;
@@ -188,7 +189,7 @@ pub fn get_default_interface() -> Result<String, ConfigError> {
         Some("lo") => Err(ConfigError::Parsing(format!(
             "Cannot use interface from 'ip route get' output {output:?}"
         ))),
-        Some(iface) => Ok(iface.to_string()),
+        Some(iface) => InterfaceName::new(iface).map_err(ConfigError::Parsing),
         None => Err(ConfigError::Parsing(format!(
             "Cannot obtain interface from 'ip route get' output {output:?}"
         ))),

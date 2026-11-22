@@ -125,7 +125,7 @@ mod tests {
             server,
             peer,
             private_key: "YFa6yVubpzmLEmvFREoGCSGe6y21Wz/dKbMLFTG5+Xk=".to_string(),
-            dns: "8.8.8.8,1.1.1.1".to_string(),
+            dns: "8.8.8.8,1.1.1.1".parse().unwrap(),
             split_tunnel,
         }
     }

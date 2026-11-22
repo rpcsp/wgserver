@@ -4,7 +4,7 @@ mod writer;
 
 use crate::{
     cli,
-    custom::{Mtu, Port},
+    custom::{DnsServers, InterfaceName, Mtu, PeerName, Port},
     system,
 };
 use ipnet::Ipv4Net;
@@ -70,7 +70,7 @@ impl std::error::Error for ConfigError {
 
 #[derive(Debug, Clone)]
 pub struct Peer {
-    name: String,
+    name: PeerName,
     public_key: String,
     preshared_key: String,
     ipv4: Ipv4Net,
@@ -93,7 +93,7 @@ pub struct PeerConfig<'a> {
     server: &'a ServerConfig,
     peer: &'a Peer,
     private_key: String,
-    dns: String,
+    dns: DnsServers,
     split_tunnel: bool,
 }
 
@@ -191,7 +191,7 @@ impl ServerConfig {
             if cli.overwrite {
                 self.peers.retain(|p| p.name != cli.name);
             } else {
-                return Err(ConfigError::Duplicated(cli.name));
+                return Err(ConfigError::Duplicated(cli.name.to_string()));
             }
         }
 
@@ -227,7 +227,7 @@ impl ServerConfig {
 
     pub fn remove_peer(mut self, name: &str) -> Result<Self, ConfigError> {
         let original_count = self.peers.len();
-        self.peers.retain(|p| p.name != name);
+        self.peers.retain(|p| p.name.as_str() != name);
 
         // Find by name
         if self.peers.len() < original_count {
@@ -301,7 +301,7 @@ impl ServerConfig {
     pub fn print_peers(&self) {
         println!("List of peers - {} item(s):", self.peers.len());
         for (index, peer) in self.peers.iter().enumerate() {
-            if peer.name.is_empty() {
+            if peer.name.as_str().is_empty() {
                 println!("\n## Index: {}", index + 1);
             } else {
                 println!("\n## Index: {} - Name: {} ", index + 1, peer.name);
@@ -324,7 +324,7 @@ fn address_list(ipv4: Ipv4Net, ipv6: Option<Ipv6Net>) -> String {
 /// The post_up rules are inserted at position 1 to take effect before any existing rule
 /// Includes extra spaces to align with PostDown
 fn post_up(
-    interface: &str,
+    interface: &InterfaceName,
     ipv4_network: &Ipv4Net,
     ipv6_network: &Option<Ipv6Net>,
     port: &Port,
@@ -355,7 +355,7 @@ fn post_up(
 /// Must mirror post_up, removing what was added.
 /// Includes extra spaces to align with PostUp
 fn post_down(
-    interface: &str,
+    interface: &InterfaceName,
     ipv4_network: &Ipv4Net,
     ipv6_network: &Option<Ipv6Net>,
     port: &Port,
@@ -386,7 +386,7 @@ fn post_down(
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
-    use crate::custom::{MTU_DEFAULT, PORT_DEFAULT};
+    use crate::custom::{InterfaceName, MTU_DEFAULT, PORT_DEFAULT};
 
     pub(crate) const TEST_PATH: &str = "/etc/wireguard/wg0.conf";
 
@@ -408,7 +408,7 @@ pub(crate) mod tests {
 
     pub(crate) fn test_peer(name: &str) -> Peer {
         Peer {
-            name: name.to_string(),
+            name: name.parse().unwrap(),
             public_key: "JPna0zzfCMOGxU7V3C/R6/FaavKmgOFRcPlftdgg8E8=".to_string(),
             preshared_key: "lzFe4Qkb0nu4tuCKR4/IwsvmQhAdgZE9/a6hyhK7eYM=".to_string(),
             ipv4: "10.8.0.2/32".parse().unwrap(),
@@ -465,7 +465,9 @@ pub(crate) mod tests {
         assert_eq!(config.clone().remove_peer("alice").unwrap().peers.len(), 1);
         assert_eq!(config.clone().remove_peer("2").unwrap().peers.len(), 1);
         assert_eq!(
-            config.clone().remove_peer("2").unwrap().peers[0].name,
+            config.clone().remove_peer("2").unwrap().peers[0]
+                .name
+                .as_str(),
             "alice"
         );
         assert!(config.remove_peer("carol").is_err());
@@ -476,8 +478,9 @@ pub(crate) mod tests {
         let ipv4 = "10.8.0.1/24".parse().unwrap();
         let ipv6 = "fd42::1/64".parse().unwrap();
         let port = PORT_DEFAULT;
-        let up = post_up("eth0", &ipv4, &Some(ipv6), &port);
-        let down = post_down("eth0", &ipv4, &Some(ipv6), &port);
+        let interface = InterfaceName::new("eth0").unwrap();
+        let up = post_up(&interface, &ipv4, &Some(ipv6), &port);
+        let down = post_down(&interface, &ipv4, &Some(ipv6), &port);
         // Every rule added must have a matching removal
         assert_eq!(up.matches(';').count(), down.matches(';').count());
         assert_eq!(

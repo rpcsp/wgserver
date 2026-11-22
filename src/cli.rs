@@ -1,5 +1,5 @@
 use crate::custom::DNS_DEFAULT;
-use crate::custom::{MTU_DEFAULT, Mtu, PORT_DEFAULT, Port};
+use crate::custom::{DnsServers, InterfaceName, MTU_DEFAULT, Mtu, PORT_DEFAULT, PeerName, Port};
 use clap::Parser;
 use ipnet::Ipv4Net;
 use ipnet::Ipv6Net;
@@ -67,7 +67,7 @@ pub struct Init {
 
     /// Uplink interface to NAT through (default: the one with the default route)
     #[arg(short, long, default_value = None)]
-    pub interface: Option<String>,
+    pub interface: Option<InterfaceName>,
 
     /// Replace an existing config file instead of refusing
     #[arg(long)]
@@ -77,11 +77,11 @@ pub struct Init {
 #[derive(clap::Args, Debug)]
 pub struct Add {
     /// Name of the new user
-    pub name: String,
+    pub name: PeerName,
 
     /// DNS servers for this user, comma separated
     #[arg(long, default_value = DNS_DEFAULT)]
-    pub dns: String,
+    pub dns: DnsServers,
 
     /// Allow local LAN traffic
     #[arg(long)]
