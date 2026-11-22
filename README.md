@@ -61,16 +61,17 @@ cargo install --git https://github.com/rpcsp/wgserver.git
 
 ### Prebuilt binaries
 
-Linux binaries are built automatically using GitHub Actions.
+Prebuilt Linux binaries are published with each [GitHub Release](https://github.com/rpcsp/wgserver/releases).
 
-The supported targets are:
+| Binary | Platform | Notes |
+|---|---|---|
+| `wgserver-linux-x64` | Linux x86_64 | 64-bit Linux |
+| `wgserver-linux-armv7` | Linux ARMv7 (32-bit, hard-float) | Standard build |
+| `wgserver-linux-armv7-glibc228` | Linux ARMv7 (32-bit, hard-float) | Compatible with glibc 2.28 and newer |
 
-| Target | Architecture |
-|---|---|
-| `x86_64-unknown-linux-gnu` | Linux x86_64 |
-| `armv7-unknown-linux-gnueabihf` | Linux ARMv7 (32-bit, hard-float) |
+The ARMv7 glibc 2.28 build is intended for older distributions, including Raspberry Pi OS Buster.
 
-Prebuilt binaries are available as downloadable artifacts from successful [GitHub Actions workflow runs](https://github.com/rpcsp/wgserver/actions).
+Download the appropriate binary from the [latest release](https://github.com/rpcsp/wgserver/releases/latest). SHA-256 checksums are provided in `SHA256SUMS`.
 
 ## Usage
 
