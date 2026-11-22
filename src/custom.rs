@@ -1,3 +1,6 @@
+use std::fmt::{self, Display, Formatter};
+use std::str::FromStr;
+
 pub const PORT_DEFAULT: Port = Port(51820);
 pub const MTU_DEFAULT: Mtu = Mtu(1420);
 pub const DNS_DEFAULT: &str = "8.8.8.8,1.1.1.1";
@@ -14,7 +17,7 @@ impl Port {
     }
 }
 
-impl std::str::FromStr for Port {
+impl FromStr for Port {
     type Err = String;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
@@ -24,8 +27,8 @@ impl std::str::FromStr for Port {
     }
 }
 
-impl std::fmt::Display for Port {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl Display for Port {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.0)
     }
 }
@@ -42,7 +45,7 @@ impl Mtu {
     }
 }
 
-impl std::str::FromStr for Mtu {
+impl FromStr for Mtu {
     type Err = String;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
@@ -51,8 +54,8 @@ impl std::str::FromStr for Mtu {
     }
 }
 
-impl std::fmt::Display for Mtu {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl Display for Mtu {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.0)
     }
 }
@@ -76,13 +79,14 @@ impl InterfaceName {
             Ok(Self(name.to_string()))
         } else {
             Err(format!(
-                "Invalid interface name {name:?}: use 1-15 characters from A-Z, a-z, 0-9, '.', '_', or '-'"
+                "Invalid interface name {name:?}: use 1-15 characters \
+                from A-Z, a-z, 0-9, '.', '_', or '-'"
             ))
         }
     }
 }
 
-impl std::str::FromStr for InterfaceName {
+impl FromStr for InterfaceName {
     type Err = String;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
@@ -90,8 +94,8 @@ impl std::str::FromStr for InterfaceName {
     }
 }
 
-impl std::fmt::Display for InterfaceName {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl Display for InterfaceName {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.0)
     }
 }
@@ -120,7 +124,7 @@ impl PeerName {
     }
 }
 
-impl std::str::FromStr for PeerName {
+impl FromStr for PeerName {
     type Err = String;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
@@ -128,8 +132,8 @@ impl std::str::FromStr for PeerName {
     }
 }
 
-impl std::fmt::Display for PeerName {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl Display for PeerName {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.0)
     }
 }
@@ -151,7 +155,7 @@ impl DnsServers {
     }
 }
 
-impl std::str::FromStr for DnsServers {
+impl FromStr for DnsServers {
     type Err = String;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
@@ -159,8 +163,8 @@ impl std::str::FromStr for DnsServers {
     }
 }
 
-impl std::fmt::Display for DnsServers {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl Display for DnsServers {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.0)
     }
 }
